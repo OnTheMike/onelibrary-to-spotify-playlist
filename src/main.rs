@@ -8,7 +8,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //load .env
     dotenv::dotenv().ok();
 
-    let xml_content = fs::read_to_string("example.xml")?;
+    let filepath="example.xml";
+
+    if !std::path::Path::new(filepath).exists() {
+        println!("File {} does not exist.", filepath);
+        return Ok(());
+    }
+    
+    let xml_content = fs::read_to_string(filepath)?;
     let doc = roxmltree::Document::parse(&xml_content)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
 
