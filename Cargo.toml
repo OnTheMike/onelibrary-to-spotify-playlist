@@ -7,7 +7,7 @@ edition = "2024"
 xml = "1.2.0"
 roxmltree = "0.20"
 chrono = "0.4.42"
-rspotify = { version = "0.15.3", features = ["env-file"] }
+rspotify = { version = "0.15.3", features = ["env-file","cli"] }
 tokio = { version = "1", features = ["full"] }
 axum = "0.7"
 tower = "0.4"
