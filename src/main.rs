@@ -1,5 +1,3 @@
-use std::process::id;
-
 use rspotify::{
     model::{PlayableId, PlaylistId, TrackId},
     prelude::{BaseClient, OAuthClient},
@@ -35,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
 
     //println!("Found {} playlists", playlist_exists.total);
-
+    let market:rspotify::model::Market = rspotify::model::Market::FromToken;
     //let mut playlist_id: PlaylistId = PlaylistId::from_id("playlist_id").unwrap();
     let playlist_id: PlaylistId;
     let existing_playlist = playlist_exists
@@ -43,10 +41,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .iter()
         .find(|p| p.name == playlist_name);
 
+    let mut tracks_to_add: Vec<PlayableId>=Vec::new();
+
     if let Some(playlist) = existing_playlist {
         println!("Playlist found: {} - {}", playlist.name, playlist.id);
         playlist_id = playlist.id.clone();
-        //playlist.tracks;
+
+        let current_playlist = spotify.playlist_items_manual(playlist.id.clone(), None, Some(market), None, None).await?;
+        println!("Current playlist has {} items", current_playlist.total);
+        
+        onelibrary.tracks.iter().for_each(|t| {
+            let track_id = TrackId::from_id(&t.spotify_id).unwrap();
+            let exists = current_playlist.items.iter().any(|item| {
+                if let Some(track) = &item.track {
+                    if let rspotify::model::PlayableItem::Track(existing_track) = track {
+                        return existing_track.id == Some(track_id.clone());
+                    }
+                }
+                false
+            });
+            if !exists {
+                tracks_to_add.push(PlayableId::from(track_id));
+            }
+        });
     } else {
         let playlist = spotify
             .user_playlist_create(
@@ -57,24 +74,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 None,
             )
             .await?;
-
+        playlist_id = playlist.id.clone();
         println!("Created playlist: {} - {}", playlist.name, playlist.id);
 
-        playlist_id = playlist.id.clone();
-    }
-
-    //only retain tracks that are not already in the playlist
-
-    
-    let items: Vec<PlayableId> = onelibrary
+        onelibrary
         .tracks
         .iter()
-        .map(|t| PlayableId::from(TrackId::from_id(&t.spotify_id).unwrap()))
-        .collect();
+        .for_each(|t| tracks_to_add.push(PlayableId::from(TrackId::from_id(&t.spotify_id).unwrap())));
+    }
 
-    spotify.playlist_add_items(playlist_id, items.clone(), None).await?;
-
-    println!("Total found: {}", onelibrary.tracks.len());
+    if !tracks_to_add.is_empty() {
+        spotify.playlist_add_items(playlist_id, tracks_to_add.clone(), None).await?;
+        println!("Added {} new tracks to the playlist.", tracks_to_add.len());
+    } else {
+        println!("No new tracks to add.");
+    }
 
     Ok(())
 }
