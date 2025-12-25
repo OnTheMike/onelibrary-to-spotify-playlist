@@ -2,17 +2,37 @@ use rspotify::{
     model::{PlayableId, PlaylistId, TrackId},
     prelude::{BaseClient, OAuthClient},
 };
+use clap::{Parser};
 
 mod onelibrary;
 mod spotify_auth;
 
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct ToolArgs {
+    /// Name of the playlist to add the tracks to
+    #[arg(short, long, default_value = "DJ Selection")]
+    playlist_name: String,
+
+    /// Path to the OneLibrary XML file
+    #[arg(short, long)]
+    file: String,
+
+    /// Date to filter tracks from (YYYY-MM-DD)
+    #[arg(short='d', long)]
+    from_date: Option<String>,
+}
+
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let spotify = spotify_auth::authenticate_spotify().await;
-    let playlist_name = "DJ Selection";
-    let filepath = "example.xml";
+    let cli = ToolArgs::parse();
 
-    if !std::path::Path::new(filepath).exists() {
+    let spotify = spotify_auth::authenticate_spotify().await;
+    let playlist_name = cli.playlist_name.clone();
+    let filepath = &cli.file;
+
+    if !std::path::Path::new(&filepath).exists() {
         println!("File {} does not exist.", filepath);
         return Ok(());
     }
@@ -20,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut onelibrary = onelibrary::Tracks::new(Vec::new());
 
     //let xml_content: &str = &fs::read_to_string(filepath)?;
-    match onelibrary.fill_from_file(filepath) {
+    match onelibrary.fill_from_file(filepath, cli.from_date) {
         Ok(_) => println!("Tracks filled successfully."),
         Err(e) => println!("Error filling tracks: {}", e),
     }
@@ -68,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let playlist = spotify
             .user_playlist_create(
                 spotify_user.id.clone(),
-                playlist_name,
+                &playlist_name,
                 Some(false),
                 Some(false),
                 None,
