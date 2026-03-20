@@ -1,12 +1,13 @@
-use rspotify::{
-    //model::{AdditionalType, Country, Market},
-    prelude::*,
-    scopes, AuthCodeSpotify, Credentials, OAuth,
-};
+use rspotify::{prelude::*, scopes, AuthCodeSpotify, Credentials, OAuth};
 
-pub async fn authenticate_spotify() -> AuthCodeSpotify {
-    let creds = Credentials::from_env().expect("Failed to get Spotify credentials from environment");
-    
+/// Authenticates with Spotify using OAuth flow
+///
+/// # Errors
+/// Returns an error if credentials are not found in environment or OAuth fails
+pub async fn authenticate_spotify() -> Result<AuthCodeSpotify, Box<dyn std::error::Error>> {
+    let creds = Credentials::from_env()
+        .ok_or("Failed to get Spotify credentials from environment")?;
+
     let scopes = scopes!(
         "playlist-modify-public",
         "playlist-modify-private",
@@ -14,13 +15,17 @@ pub async fn authenticate_spotify() -> AuthCodeSpotify {
         "user-library-read"
     );
 
-    let oauth = OAuth::from_env(scopes).expect("Failed to get Spotify OAuth from environment");
+    let oauth = OAuth::from_env(scopes)
+        .ok_or("Failed to get Spotify OAuth from environment")?;
 
     let spotify = AuthCodeSpotify::new(creds, oauth);
 
     // Obtaining the access token
-    let url = spotify.get_authorize_url(false).unwrap();
-    spotify.prompt_for_token(&url).await.unwrap();
+    let url = spotify.get_authorize_url(false)
+        .map_err(|e| format!("Failed to get authorization URL: {}", e))?;
+    
+    spotify.prompt_for_token(&url).await
+        .map_err(|e| format!("Failed to authenticate: {}", e))?;
 
-    spotify
+    Ok(spotify)
 }

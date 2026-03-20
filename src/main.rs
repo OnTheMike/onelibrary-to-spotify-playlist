@@ -125,43 +125,56 @@ async fn add_new_tracks_to_playlist(
             .await?;
         
         total = page.total as u32;
-        log::debug!("Fetched page with {} items (offset: {}, total: {})", page.items.len(), offset, total);
+        log::info!("Fetched page with {} items (offset: {}, total: {})", page.items.len(), offset, total);
         
         // Extract track IDs from this page
         for item in page.items.iter() {
             if let Some(PlayableItem::Track(track)) = &item.track {
                 if let Some(id) = track.id.as_ref() {
-                    existing_ids.insert(id.id().to_string());
+                    let id_str = id.id().to_string();
+                    log::debug!("Found existing playlist track: {}", id_str);
+                    existing_ids.insert(id_str);
+                } else {
+                    log::debug!("Skipped track with no ID: {}", track.name);
                 }
+            } else {
+                log::debug!("Skipped non-track item (episode/local/etc)");
             }
         }
         
         // Check if we've fetched all items
         offset += PAGE_SIZE;
         if page.items.is_empty() || offset >= total {
-            log::debug!("Finished fetching all {} playlist items", existing_ids.len());
+            log::info!("Finished fetching all {} playlist items", existing_ids.len());
             break;
         }
     }
 
     log::info!("Playlist has {} total items", total);
 
-    // Filter new tracks
+    // Filter new tracks using robust deduplication
     let mut new_tracks = Vec::new();
     let mut skipped = 0;
 
     for track in tracks_to_process {
+        log::debug!("Checking track ID from XML: '{}'", track.spotify_id);
+        
         // Try to parse the track ID
         match TrackId::from_id(&track.spotify_id) {
             Ok(track_id) => {
-                if existing_ids.contains(track_id.id()) {
+                let raw_id = track_id.id();
+                log::debug!("Parsed track ID: '{}' (raw: '{}')", track.spotify_id, raw_id);
+                
+                if existing_ids.contains(raw_id) {
+                    log::debug!("Track {} is duplicate (already in playlist by ID): {} - {}", raw_id, track.artist, track.name);
                     skipped += 1;
                 } else {
+                    log::info!("Track {} is NEW - will be added: {} - {}", raw_id, track.artist, track.name);
                     new_tracks.push(PlayableId::from(track_id));
                 }
             }
-            Err(_) => {
-                log::warn!("Invalid Spotify ID: {}", track.spotify_id);
+            Err(e) => {
+                log::warn!("Invalid Spotify ID '{}' ({} - {}): {:?}", track.spotify_id, track.artist, track.name, e);
                 skipped += 1;
             }
         }
@@ -172,6 +185,7 @@ async fn add_new_tracks_to_playlist(
         new_tracks.len(),
         skipped
     );
+    log::info!("Existing playlist contains {} unique entries (by ID or name)", existing_ids.len());
 
     // Add tracks to playlist in batches (Spotify API limit is 100 per request)
     if !new_tracks.is_empty() {

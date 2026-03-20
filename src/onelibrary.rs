@@ -5,6 +5,8 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct Track {
     pub spotify_id: String,
+    pub name: String,
+    pub artist: String,
 }
 
 /// A collection of tracks parsed from OneLibrary XML
@@ -89,7 +91,11 @@ impl Tracks {
                     continue;
                 }
 
-                let new_track = Track { spotify_id };
+                // Extract track name and artist
+                let name = node.attribute("Name").unwrap_or("Unknown").to_string();
+                let artist = node.attribute("Artist").unwrap_or("Unknown").to_string();
+
+                let new_track = Track { spotify_id, name, artist };
                 self.tracks.push(new_track);
             }
         }
