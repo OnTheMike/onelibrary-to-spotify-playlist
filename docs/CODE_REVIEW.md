@@ -142,123 +142,26 @@ onelibrary.tracks.iter().for_each(|t| {
 - Repeated `.clone()` calls
 - Nested `.iter().any()` with triple pattern matching
 
-**Recommendation:** Use a HashSet for O(1) lookups:
-```rust
-let existing_ids: HashSet<String> = current_playlist.items.iter()
-    .filter_map(|item| {
-        if let Some(PlayableItem::Track(track)) = &item.track {
-            track.id.as_ref().map(|id| id.to_string())
-        } else {
-            None
-        }
-    })
-    .collect();
-
-let tracks_to_add: Vec<PlayableId> = onelibrary.tracks.iter()
-    .filter_map(|t| {
-        if existing_ids.contains(&t.spotify_id) {
-            return None;
-        }
-        TrackId::from_id(&t.spotify_id).ok().map(PlayableId::from)
-    })
-    .collect();
-```
+**Recommendation:** Use a HashSet for O(1) lookups.
 
 ---
 
 ## 📋 Code Quality Issues
 
 ### 7. **Inconsistent String Handling**
-**Severity: LOW**
-
-Mixed use of string types:
-```rust
-let playlist_name: String;  // String
-let filepath = &cli.file;    // &String
-```
-
-**Recommendation:** 
-- Use `&str` for function parameters that don't need ownership
-- Use `String` only when needed (returning or storing)
-
----
+Mixed use of string types for parameter passing and storage.
 
 ### 8. **Verbose and Redundant Code**
-**Severity: LOW**
-
-```rust
-// ❌ Current
-let mut tracks_to_add: Vec<PlayableId>=Vec::new();
-// ...
-onelibrary.tracks.iter().for_each(|t| {
-    // ... logic
-    tracks_to_add.push(PlayableId::from(track_id));
-});
-
-// ✅ Better
-let tracks_to_add: Vec<PlayableId> = onelibrary.tracks.iter()
-    .filter_map(|t| { /* ... */ })
-    .collect();
-```
-
----
+Too many manual iterations instead of using iterator combinators like `filter_map` and `collect`.
 
 ### 9. **Magic Strings and Hard Coded Values**
-**Severity: LOW**
-
-```rust
-// ❌ Hard-coded
-.user_playlists_manual(spotify_user.id.clone(), Some(50), Some(0))
-
-// ❌ Magic date
-.unwrap_or("1970-01-01".to_string())
-```
-
-**Recommendation:**
-```rust
-const MAX_PLAYLISTS: u32 = 50;
-const DEFAULT_MIN_DATE: &str = "1970-01-01";
-```
-
----
+Hard-coded values like playlist limits, default dates.
 
 ### 10. **Missing Documentation**
-**Severity: LOW**
-
-Functions lack doc comments explaining:
-- What they do
-- Parameters and return values
-- Possible errors
-- Example usage
-
-**Recommendation:**
-```rust
-/// Extracts Spotify track IDs from a OneLibrary XML file.
-///
-/// # Arguments
-/// * `filepath` - Path to the XML file
-/// * `from_date` - Optional date filter (YYYY-MM-DD format)
-///
-/// # Errors
-/// Returns an error if the file cannot be read or parsed.
-pub fn fill_from_file(&mut self, filepath: &str, from_date: Option<String>) 
-    -> Result<(), Box<dyn std::error::Error>>
-```
-
----
+Functions lack doc comments explaining their purpose.
 
 ### 11. **Debug Printing Instead of Logging**
-**Severity: LOW**
-
-```rust
-println!("Current nr of items in in playlist:{}", current_playlist.items.len());
-```
-
-**Recommendation:** Use a logging library like `tracing` or `log`:
-```cargo
-log = "0.4"
-env_logger = "0.11"
-```
+Uses `println!` instead of a proper logging library.
 
 ---
 
@@ -266,25 +169,7 @@ env_logger = "0.11"
 
 **Severity: MEDIUM** | No tests present
 
-**Recommendation:** Add unit tests:
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_extract_spotify_id() {
-        let location = "file:///path/spotify:track:1234567890";
-        let id = extract_spotify_id(location).unwrap();
-        assert_eq!(id, "1234567890");
-    }
-
-    #[test]
-    fn test_date_filtering() {
-        // Test date filtering logic
-    }
-}
-```
+**Recommendation:** Add unit tests.
 
 ---
 
@@ -303,19 +188,6 @@ mod tests {
 
 ---
 
-## Code Smell Checklist
-
-- [x] Panic-inducing `.unwrap()` calls
-- [x] Overly long functions (>50 lines)
-- [x] Nested pattern matching going 3+ levels deep
-- [x] Unused imports and dependencies
-- [x] Magic strings and numbers
-- [x] Inconsistent error handling
-- [x] No tests or documentation
-- [ ] Unused mutable variables
-
----
-
 ## Next Steps
 
 1. Fix the critical Cargo.toml edition issue
@@ -324,4 +196,4 @@ mod tests {
 4. Add unit tests for parsing and filtering logic
 5. Optimize duplicate detection with HashSet
 6. Add doc comments and logging
-7. Consider using a structured error type instead of `Box<dyn std::error::Error>`
+7. Consider using a structured error type
