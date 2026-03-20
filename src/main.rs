@@ -31,6 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     env_logger::Builder::from_default_env()
         .filter_level(log::LevelFilter::Info)
+        .filter_module("rspotify", log::LevelFilter::Off)
         .init();
 
     let cli = ToolArgs::parse();
@@ -64,7 +65,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let playlist_id = get_or_create_playlist(&spotify, &spotify_user.id, &cli.playlist_name).await?;
 
     // Add new tracks to playlist
-    add_new_tracks_to_playlist(&spotify, playlist_id, &onelibrary.tracks).await?;
+    add_new_tracks_to_playlist(&spotify, playlist_id.clone(), &onelibrary.tracks).await?;
+
 
     log::info!("Successfully completed!");
     Ok(())
@@ -132,8 +134,17 @@ async fn add_new_tracks_to_playlist(
             if let Some(PlayableItem::Track(track)) = &item.track {
                 if let Some(id) = track.id.as_ref() {
                     let id_str = id.id().to_string();
+                    let id_from_href_str= id_from_href(track.href.as_ref());
                     log::debug!("Found existing playlist track: {}", id_str);
-                    existing_ids.insert(id_str);
+                    
+                    if id_from_href_str != id_str {
+                        log::debug!("Also adding ID from href: {}", id_from_href_str);
+                        existing_ids.insert(id_str);
+                        existing_ids.insert(id_from_href_str);
+                    }
+                    else {
+                        existing_ids.insert(id_str);
+                    }
                 } else {
                     log::debug!("Skipped track with no ID: {}", track.name);
                 }
@@ -202,4 +213,14 @@ async fn add_new_tracks_to_playlist(
     }
 
     Ok(())
+}
+
+fn id_from_href(href: Option<&String>) -> String {
+    if let Some(href_str) = href {
+        // Spotify track href format: "https://api.spotify.com/v1/tracks/{id}"
+        if let Some(id_part) = href_str.split("/tracks/").nth(1) {
+            return id_part.to_string();
+        }
+    }
+    String::new()
 }
